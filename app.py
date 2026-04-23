@@ -7,43 +7,40 @@ st.set_page_config(page_title="Horário Pro", layout="wide")
 st.title("📅 Horário Pro - Gerador e Editor")
 st.markdown("---")
 
-# --- Interface de Entrada ---
+# --- Interface de Entrada na Lateral ---
 with st.sidebar:
     st.header("Configurações")
-    turmas = st.text_input("Turmas (separe por vírgula)", "9A, 9B").split(",")
-    dias = ["SEG", "TER", "QUA", "QUI", "SEX"]
-    num_aulas = st.slider("Aulas por dia", 1, 6, 5)
+    turmas_input = st.text_input("Nomes das Turmas (separe por vírgula)", "9A, 9B")
     
-    if st.button("Resetar/Gerar Base"):
-        # Cria uma tabela vazia para começar
+    # AGORA VOCÊ DIGITA O NÚMERO (Ex: 8)
+    num_aulas = st.number_input("Aulas por dia", min_value=1, max_value=15, value=8)
+    
+    dias = ["SEG", "TER", "QUA", "QUI", "SEX"]
+    
+    if st.button("Gerar Nova Grade"):
+        # Cria a tabela com base no número digitado
+        turmas = [t.strip() for t in turmas_input.split(",")]
         slots = [f"{d}-{i+1}ª" for d in dias for i in range(num_aulas)]
-        df_init = pd.DataFrame("", index=slots, columns=[t.strip() for t in turmas])
+        df_init = pd.DataFrame("", index=slots, columns=turmas)
         st.session_state['horario_data'] = df_init
 
 # --- Área de Edição ---
 if 'horario_data' in st.session_state:
-    st.subheader("📝 Edite sua Grade Horária")
-    st.info("Clique em qualquer célula para digitar ou alterar o professor/disciplina.")
+    st.subheader(f"📝 Grade Escolar ({num_aulas} aulas por dia)")
+    st.info("Digite os nomes dos professores/disciplinas diretamente na tabela abaixo.")
     
-    # O componente 'data_editor' permite que você mude os valores na hora
+    # Editor de dados de alta performance
     editado_df = st.data_editor(
         st.session_state['horario_data'],
         use_container_width=True,
         num_rows="fixed"
     )
     
-    # Salvar alterações
+    # Salva o que você digitou
     st.session_state['horario_data'] = editado_df
 
-    # --- Exportação ---
     st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        csv = editado_df.to_csv().encode('utf-8')
-        st.download_button("📥 Baixar em Excel/CSV", csv, "horario_escolar.csv", "text/csv")
-    with col2:
-        if st.button("Limpar Tudo"):
-            del st.session_state['horario_data']
-            st.rerun()
+    csv = editado_df.to_csv().encode('utf-8')
+    st.download_button("📥 Baixar Horário (Excel/CSV)", csv, "horario_pro.csv", "text/csv")
 else:
-    st.warning("Ajuste as turmas na lateral e clique em 'Gerar Base' para começar.")
+    st.warning("Ajuste as turmas e o número de aulas ao lado, depois clique em 'Gerar Nova Grade'.")
