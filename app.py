@@ -1,63 +1,85 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime, timedelta
 
-# --- Configuração de Elite: Layout Largo ---
 st.set_page_config(page_title="Horário Pro", layout="wide")
 
-# Estilização extra para parecer mais com uma planilha
-st.markdown("""
-    <style>
-    .stDataTable {
-        border: 1px solid #d3d3d3;
-        border-radius: 5px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+st.title("📅 Horário Pro - Grade Personalizada")
 
-st.title("📅 Horário Pro - Grade Quadriculada")
-st.markdown("---")
-
-with st.sidebar:
-    st.header("⚙️ Painel de Controle")
-    turmas_input = st.text_input("Turmas (Ex: 9A, 9B, 101)", "9A, 9B")
+def calcular_horarios(num_aulas):
+    horarios = []
+    # Primeira aula começa 07:30
+    atual = datetime.strptime("07:30", "%H:%M")
     
-    # Campo para digitar as 8 aulas (ou mais)
-    num_aulas = st.number_input("Total de aulas por dia", min_value=1, max_value=20, value=8)
-    
-    dias = ["SEGUNDA", "TERÇA", "QUARTA", "QUINTA", "SEXTA"]
-    
-    if st.button("🆕 Gerar Grade Quadriculada"):
-        turmas = [t.strip() for t in turmas_input.split(",")]
-        # Cria os nomes das linhas (Ex: SEGUNDA - 1ª Aula)
-        slots = [f"{d} ({i+1}ª)" for d in dias for i in range(num_aulas)]
+    for i in range(1, num_aulas + 1):
+        inicio = atual.strftime("%H:%M")
+        fim = (atual + timedelta(minutes=55)).strftime("%H:%M")
+        horarios.append(f"{i}ª Aula ({inicio} - {fim})")
         
-        # Cria a matriz (planilha)
-        df_init = pd.DataFrame("", index=slots, columns=turmas)
-        st.session_state['horario_data'] = df_init
+        # Define o próximo horário
+        proximo_inicio = atual + timedelta(minutes=55)
+        
+        # Lógica de Intervalos
+        if i == 2: # Intervalo da Manhã (pós 2ª aula)
+            proximo_inicio += timedelta(minutes=20)
+        elif i == 4: # Almoço (pós 4ª aula)
+            proximo_inicio += timedelta(minutes=90)
+        elif i == 6: # Intervalo da Tarde (pós 6ª aula)
+            proximo_inicio += timedelta(minutes=20)
+        
+        atual = proximo_inicio
+    return horarios
 
-# --- Exibição da Planilha ---
-if 'horario_data' in st.session_state:
-    st.subheader("📝 Edição Direta")
-    st.caption("Podes copiar e colar dados de outras planilhas aqui dentro também!")
-    
-    # O data_editor cria o visual "quadriculado" e permite edição
-    editado_df = st.data_editor(
-        st.session_state['horario_data'],
-        use_container_width=True, # Faz ocupar a tela toda
-        num_rows="fixed",         # Trava o número de linhas para não bagunçar
-        height=600                # Altura fixa para scroll se houver muitas aulas
-    )
-    
-    st.session_state['horario_data'] = editado_df
+# --- Interface ---
+with st.sidebar:
+    st.header("Configurações")
+    turmas_input = st.text_input("Suas Turmas/Disciplinas", "Minha Grade")
+    if st.button("Gerar Horário Escolar"):
+        dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]
+        grade_final = {}
+        
+        for dia in dias:
+            # Regra: Seg, Ter e Sex = 7 aulas | Qua e Qui = 8 aulas
+            n_aulas = 7 if dia in ["Segunda", "Terça", "Sexta"] else 8
+            col_horarios = calcular_horarios(n_aulas)
+            
+            # Preenche com vazio para manter o DataFrame alinhado
+            if n_aulas == 7:
+                col_horarios.append("--- Fim do Período ---")
+            
+            grade_final[dia] = col_horarios
+        
+        # Criar DataFrame (Colunas = Dias, Linhas = Aulas)
+        df = pd.DataFrame(grade_final)
+        # Ajustar index para números ordinais 1-8
+        df.index = [f"{i+1}º Horário" for i in range(8)]
+        
+        # Criar uma versão para edição onde as células estão vazias
+        # mas mantemos os nomes das aulas como referência visual se desejar
+        df_edit = pd.DataFrame("", index=df.index, columns=df.columns)
+        
+        # Guardar as legendas de horários para mostrar ao usuário
+        st.session_state['legendas'] = df
+        st.session_state['grade_editavel'] = df_edit
 
+# --- Visualização ---
+if 'grade_editavel' in st.session_state:
+    st.subheader("📝 Preencha sua Grade")
+    st.write("🕒 **Referência de Horários (Automático):**")
+    st.table(st.session_state['legendas']) # Mostra a tabela de horários calculada
+    
     st.markdown("---")
-    # Botão de exportação
-    csv = editado_df.to_csv().encode('utf-8-sig') # utf-8-sig para o Excel abrir com acentos corretos
-    st.download_button(
-        label="📥 Descarregar Planilha (Excel/CSV)",
-        data=csv,
-        file_name="horario_escolar_pro.csv",
-        mime="text/csv",
+    st.write("✍️ **Sua Planilha (Edite abaixo):**")
+    
+    # Editor onde você coloca as matérias
+    grade_preenchida = st.data_editor(
+        st.session_state['grade_editavel'],
+        use_container_width=True,
+        height=400
     )
-else:
+    
+    st.session_state['grade_editavel'] = grade_preenchida
+    
+    csv = grade_preenchida.to_csv().encode('utf-8-sig')
+    st.download_button("📥 Baixar Planilha", csv, "meu_horario.csv", "text/csv")else:
     st.warning("Define as turmas e o número de aulas na lateral e clica em 'Gerar Grade'.")
