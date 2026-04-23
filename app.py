@@ -1,46 +1,63 @@
 import streamlit as st
 import pandas as pd
 
-# --- Configuração da Página ---
+# --- Configuração de Elite: Layout Largo ---
 st.set_page_config(page_title="Horário Pro", layout="wide")
 
-st.title("📅 Horário Pro - Gerador e Editor")
+# Estilização extra para parecer mais com uma planilha
+st.markdown("""
+    <style>
+    .stDataTable {
+        border: 1px solid #d3d3d3;
+        border-radius: 5px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("📅 Horário Pro - Grade Quadriculada")
 st.markdown("---")
 
-# --- Interface de Entrada na Lateral ---
 with st.sidebar:
-    st.header("Configurações")
-    turmas_input = st.text_input("Nomes das Turmas (separe por vírgula)", "9A, 9B")
+    st.header("⚙️ Painel de Controle")
+    turmas_input = st.text_input("Turmas (Ex: 9A, 9B, 101)", "9A, 9B")
     
-    # AGORA VOCÊ DIGITA O NÚMERO (Ex: 8)
-    num_aulas = st.number_input("Aulas por dia", min_value=1, max_value=15, value=8)
+    # Campo para digitar as 8 aulas (ou mais)
+    num_aulas = st.number_input("Total de aulas por dia", min_value=1, max_value=20, value=8)
     
-    dias = ["SEG", "TER", "QUA", "QUI", "SEX"]
+    dias = ["SEGUNDA", "TERÇA", "QUARTA", "QUINTA", "SEXTA"]
     
-    if st.button("Gerar Nova Grade"):
-        # Cria a tabela com base no número digitado
+    if st.button("🆕 Gerar Grade Quadriculada"):
         turmas = [t.strip() for t in turmas_input.split(",")]
-        slots = [f"{d}-{i+1}ª" for d in dias for i in range(num_aulas)]
+        # Cria os nomes das linhas (Ex: SEGUNDA - 1ª Aula)
+        slots = [f"{d} ({i+1}ª)" for d in dias for i in range(num_aulas)]
+        
+        # Cria a matriz (planilha)
         df_init = pd.DataFrame("", index=slots, columns=turmas)
         st.session_state['horario_data'] = df_init
 
-# --- Área de Edição ---
+# --- Exibição da Planilha ---
 if 'horario_data' in st.session_state:
-    st.subheader(f"📝 Grade Escolar ({num_aulas} aulas por dia)")
-    st.info("Digite os nomes dos professores/disciplinas diretamente na tabela abaixo.")
+    st.subheader("📝 Edição Direta")
+    st.caption("Podes copiar e colar dados de outras planilhas aqui dentro também!")
     
-    # Editor de dados de alta performance
+    # O data_editor cria o visual "quadriculado" e permite edição
     editado_df = st.data_editor(
         st.session_state['horario_data'],
-        use_container_width=True,
-        num_rows="fixed"
+        use_container_width=True, # Faz ocupar a tela toda
+        num_rows="fixed",         # Trava o número de linhas para não bagunçar
+        height=600                # Altura fixa para scroll se houver muitas aulas
     )
     
-    # Salva o que você digitou
     st.session_state['horario_data'] = editado_df
 
     st.markdown("---")
-    csv = editado_df.to_csv().encode('utf-8')
-    st.download_button("📥 Baixar Horário (Excel/CSV)", csv, "horario_pro.csv", "text/csv")
+    # Botão de exportação
+    csv = editado_df.to_csv().encode('utf-8-sig') # utf-8-sig para o Excel abrir com acentos corretos
+    st.download_button(
+        label="📥 Descarregar Planilha (Excel/CSV)",
+        data=csv,
+        file_name="horario_escolar_pro.csv",
+        mime="text/csv",
+    )
 else:
-    st.warning("Ajuste as turmas e o número de aulas ao lado, depois clique em 'Gerar Nova Grade'.")
+    st.warning("Define as turmas e o número de aulas na lateral e clica em 'Gerar Grade'.")
